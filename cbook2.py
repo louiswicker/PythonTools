@@ -1,5 +1,5 @@
 
-import numpy as N
+import numpy as np
 import datetime
 import netCDF4
 import xarray as xr
@@ -50,16 +50,16 @@ def GetTimeIndex(file_obj, time, closest=False):
 
     tarray    = file_obj.variables['TIME'][:]
 
-    index = N.where(tarray >= time)
+    index = np.where(tarray >= time)
     if closest:
-            index2 = N.where(tarray < time)
-            if N.size(index2) !=0 and N.size(index) !=0:
+            index2 = np.where(tarray < time)
+            if np.size(index2) !=0 and np.size(index) !=0:
                 diff1 = tarray[index[0][0]] - time
                 diff2 = time - tarray[index2[0][-1]]
                 if diff2 < diff1:
                     return index2[0][-1]
     else:
-       if N.size(index) !=0:
+       if np.size(index) !=0:
            return index[0][0]
 
 #===============================================================================
@@ -99,20 +99,20 @@ def ComputeWZ(x, y, u, v):
     ny   = y.shape[0]
 
     if len(u.shape) == 3:  # 3D volume of vorticity
-        wz = N.zeros((u.shape[0],nx+1,ny+1))
+        wz = np.zeros((u.shape[0],nx+1,ny+1))
         wz[:,1:nx,1:ny] = (v[:,1:nx,1:ny+1] - v[:,0:nx-1,1:ny+1]) / dx \
                         - (u[:,1:nx,1:ny]   - u[:,1:nx,0:ny-1])   / dy
         return 0.25*(wz[:,0:nx,0:ny] + wz[:,1:nx+1,0:ny] + wz[:,0:nx,1:ny+1] + wz[:,1:nx+1,1:ny+1])
 
     else:
-        wz = N.zeros((nx+1,ny+1))
+        wz = np.zeros((nx+1,ny+1))
         wz[1:nx,1:ny] = (v[1:nx,1:ny+1] - v[0:nx-1,1:ny+1]) / dx \
                       - (u[1:nx,1:ny]   - u[1:nx,  0:ny-1]) / dy
         return 0.25*(wz[0:nx,0:ny] + wz[1:nx+1,0:ny] + wz[0:nx,1:ny+1] + wz[1:nx+1,1:ny+1])
 
 
 # if we get this far, its an Error...
-    return N.nan
+    return np.nan
     
 #===============================================================================
 def GetVR(x, y, z, rlat, rlon, glat, glon, u, v, w, dbz = None, min_dis=500.):
@@ -122,13 +122,13 @@ def GetVR(x, y, z, rlat, rlon, glat, glon, u, v, w, dbz = None, min_dis=500.):
 
     dx   = x[1]-x[0]
     dy   = y[1]-y[0]
-    grid = N.mgrid[x[0]:x[-1]+dx:dx, y[0]:y[-1]+dx:dy]
+    grid = np.mgrid[x[0]:x[-1]+dx:dx, y[0]:y[-1]+dx:dy]
     x2d  = grid[0] - rdx 
     y2d  = grid[1] - rdy 
 
-    r = N.sqrt(x2d**2 + y2d**2 + z**2)
+    r = np.sqrt(x2d**2 + y2d**2 + z**2)
 
-    return N.where(r >= min_dis, (u*x2d + v*y2d + w*z)/r, 0.0)
+    return np.where(r >= min_dis, (u*x2d + v*y2d + w*z)/r, 0.0)
     
 #===============================================================================
 def GetWindSpeed(u,v, w = None):
@@ -207,15 +207,15 @@ def calcUH(w, vort, zc, ze, zbot, ztop):
     nx=w.shape[2]
     ny=w.shape[1]
 
-    k1 = N.where(zc > zbot)[0][0] 
-    k2 = N.where(zc > ztop)[0][0]
+    k1 = np.where(zc > zbot)[0][0] 
+    k2 = np.where(zc > ztop)[0][0]
     
     print("CalcUH:  nx,ny:  ", nx,ny)
     print("CalcUH:  Layer is:  ", ze[k1], ze[k2])
     print("CalcUH:  Max/Min W:     ", w.max(), w.min())
     print("CalcUH:  Max/Min VORT:  ", vort.max(), vort.min())
 
-    UH = -1.0 * N.ones((ny, nx))
+    UH = -1.0 * np.ones((ny, nx))
 
     for j in range(1,ny-1):
         for i in range(1,nx-1):
@@ -238,9 +238,9 @@ def get_loc(x0, xc, radius):
   """get_loc returns a range of indices for a coordinate system, a pt, and a radius
   """
 
-  indices = N.where(x-radius <= xc <= x+radius)
+  indices = np.where(x-radius <= xc <= x+radius)
 
-  if N.size(indices[0]) == 0:
+  if np.size(indices[0]) == 0:
     return -1, 0
   else:
     i0 = indices[0][0]
@@ -260,13 +260,13 @@ def interp_weights(x, xc, extrapolate=False):
      OUTPUTS:  i0, i1, dx0, dx1 locations and weights for the interpolation
   """
 
-  indices = N.where(xc <= x)
+  indices = np.where(xc <= x)
 
-  if N.size(indices[0]) == 0:
+  if np.size(indices[0]) == 0:
     return -1, -1, None, None, None
   else:
     i0 = indices[0][-1]
-    if i0 == N.size(xc)-1:
+    if i0 == np.size(xc)-1:
       return -1, -1, None, None, None
     else:
       dx  = xc[i0+1] - xc[i0]
@@ -286,7 +286,7 @@ def nearlyequal(a, b, sig_digit=None):
     difference = abs(a - b)
     avg = (a + b)/2
     
-    return N.log10(avg / difference) >= sig_digit
+    return np.log10(avg / difference) >= sig_digit
     
     
 #===============================================================================
@@ -388,7 +388,7 @@ def nice_mxmnintvl(dmin, dmax, outside=True, max_steps=25, cint=None, sym=False)
      
         Lou Wicker, August 2009 """
 
-    table = N.array([1.0,2.0,2.5,4.0,5.0,10.0,20.0,25.0,40.0,50.0,100.0,200.0,
+    table = np.array([1.0,2.0,2.5,4.0,5.0,10.0,20.0,25.0,40.0,50.0,100.0,200.0,
                       250.0,400.0,500.0])
 
     if nearlyequal(dmax,dmin):
@@ -407,18 +407,18 @@ def nice_mxmnintvl(dmin, dmax, outside=True, max_steps=25, cint=None, sym=False)
         amax = smax
         amin = -smax
 
-    d = 10.0**(N.floor(N.log10(amax - amin)) - 2.0)
+    d = 10.0**(np.floor(np.log10(amax - amin)) - 2.0)
     if cint == None or cint == 0.0:
         t = table * d
     else:
         t = cint
     if outside:
-        am1 = N.floor(amin/t) * t
-        ax1 = N.ceil(amax/t)  * t
+        am1 = np.floor(amin/t) * t
+        ax1 = np.ceil(amax/t)  * t
         cints = (ax1 - am1) / t 
     else:
-        am1 = N.ceil(amin/t) * t
-        ax1 = N.floor(amax/t)  * t
+        am1 = np.ceil(amin/t) * t
+        ax1 = np.floor(amax/t)  * t
         cints = (ax1 - am1) / t
     
     # DEBUG LINE BELOW
@@ -426,7 +426,7 @@ def nice_mxmnintvl(dmin, dmax, outside=True, max_steps=25, cint=None, sym=False)
     
     if cint == None or cint == 0.0:   
         try:
-            index = N.where(cints < max_steps)[0][0]
+            index = np.where(cints < max_steps)[0][0]
             return am1[index], ax1[index], cints[index]
         except IndexError:
             return None
@@ -458,42 +458,42 @@ def compute_az_el(x, y, z, degrees=True):
 
     rearth  = 6667.e3
     eer     = rearth * 4. / 3.
-    rxy     = N.sqrt( x**2 + y**2)
+    rxy     = np.sqrt( x**2 + y**2)
 
-    az = N.nan
-    el = N.nan
+    az = np.nan
+    el = np.nan
 
     if x == 0.0 and y == 0.0:
         az = 0.0
 
     elif y == 0.0:
         if x > 0.0:
-            az = 0.5*N.pi
+            az = 0.5*np.pi
         else:
-            az = 1.5*N.pi
+            az = 1.5*np.pi
 
     elif x >= 0.0 and y > 0.0:
-        az = N.math.atan(x/y)
+        az = np.math.atan(x/y)
 
     elif x >= 0.0 and y < 0.0:
-        az = -N.math.atan(x/abs(y)) + N.pi
+        az = -np.math.atan(x/abs(y)) + np.pi
 
     elif x < 0.0 and y < 0.0:
-        az = N.math.atan(x/y) + N.pi
+        az = np.math.atan(x/y) + np.pi
 
     else:
-      az = -N.math.atan(abs(x)/y) + 2.0*N.pi
+      az = -np.math.atan(abs(x)/y) + 2.0*np.pi
 
     if rxy == 0.0:
         if z > 0.0:
-            el = 0.5*N.pi
+            el = 0.5*np.pi
         elif z <= 0.0:
-            el = -0.5*N.pi
+            el = -0.5*np.pi
     else:
-       el = N.math.atan(z/rxy)
+       el = np.math.atan(z/rxy)
 
     if degrees:
-        return  N.degrees(az), N.degrees(el)
+        return  np.degrees(az), np.degrees(el)
     else:
         return az, el        
 
@@ -517,10 +517,10 @@ def dll_2_dxy(lat1, lat2, lon1, lon2, degrees=False, azimuth=False, proj = 'latl
   """
 
   if degrees:
-    rlon1 = N.deg2rad(lon1)
-    rlon2 = N.deg2rad(lon2)
-    rlat1 = N.deg2rad(lat1)
-    rlat2 = N.deg2rad(lat2)
+    rlon1 = np.deg2rad(lon1)
+    rlon2 = np.deg2rad(lon2)
+    rlat1 = np.deg2rad(lat1)
+    rlat2 = np.deg2rad(lat2)
   else:
     rlon1 = lon1
     rlon2 = lon2
@@ -531,7 +531,7 @@ def dll_2_dxy(lat1, lat2, lon1, lon2, degrees=False, azimuth=False, proj = 'latl
 
   if proj == 'latlon':
     rearth  = 1000.0 * 6367.0
-    x       = rearth * N.cos(0.5*(rlat1+rlat2)) * (rlon2-rlon1)
+    x       = rearth * np.cos(0.5*(rlat1+rlat2)) * (rlon2-rlon1)
     y       = rearth * (rlat2-rlat1)
 
 # Lambert Conformal
@@ -541,9 +541,9 @@ def dll_2_dxy(lat1, lat2, lon1, lon2, degrees=False, azimuth=False, proj = 'latl
     x, y = p1(lon2, lat2, errchk = True)
 
   if azimuth:
-    ay = N.sin(rlon2-rlon1)*N.cos(rlat2)
-    ax = N.cos(rlat1)*N.sin(rlat2)-N.sin(rlat1)*N.cos(rlat2)*N.cos(rlon2-rlon1)
-    az = N.degrees(N.arctan2(ay,ax))
+    ay = np.sin(rlon2-rlon1)*np.cos(rlat2)
+    ax = np.cos(rlat1)*np.sin(rlat2)-np.sin(rlat1)*np.cos(rlat2)*np.cos(rlon2-rlon1)
+    az = np.degrees(np.arctan2(ay,ax))
     return x, y, az
 
   return x, y
@@ -569,8 +569,8 @@ def dxy_2_dll(x, y, lat1, lon1, degrees=True, proj = 'latlon'):
   """
 
   if degrees:
-    rlon1 = N.deg2rad(lon1)
-    rlat1 = N.deg2rad(lat1)
+    rlon1 = np.deg2rad(lon1)
+    rlat1 = np.deg2rad(lat1)
   else:
     rlon1 = lon1
     rlat1 = lat1
@@ -580,8 +580,8 @@ def dxy_2_dll(x, y, lat1, lon1, degrees=True, proj = 'latlon'):
   if proj == 'latlon':
     rearth = 1000.0 * 6367.0
     rlat2  = rlat1 + y / rearth
-    lon    = N.rad2deg(rlon1 + x / ( rearth * N.cos(0.5*(rlat1+rlat1)) ) )
-    lat    = N.rad2deg(rlat2)
+    lon    = np.rad2deg(rlon1 + x / ( rearth * np.cos(0.5*(rlat1+rlat1)) ) )
+    lat    = np.rad2deg(rlat2)
 
 # Lambert Conformal
 
@@ -590,7 +590,7 @@ def dxy_2_dll(x, y, lat1, lon1, degrees=True, proj = 'latlon'):
     lon, lat = p1(x, y, inverse = True)
 
   if degrees == False:
-    return N.deg2rad(lat), N.deg2rad(lon)
+    return np.deg2rad(lat), np.deg2rad(lon)
   else:
     return lat, lon
 
