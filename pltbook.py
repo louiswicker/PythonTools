@@ -188,7 +188,7 @@ def nice_mxmnintvl(dmin, dmax, **kwargs):
         cints = (ax1 - am1) / t
     
     # DEBUG LINE BELOW
-    print(t, am1, ax1, cints)
+   #print(t, am1, ax1, cints)
     
     if cint == None or cint == 0.0:   
         try:
