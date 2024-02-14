@@ -6,9 +6,10 @@ import xarray as xr
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 
-
 hscale = 1.0 
 debug  = False
+
+_default_cmap = plt.cm.viridis_r
 
 #===============================================================================
 # 2D xarray container for plotting fields
@@ -29,8 +30,14 @@ def container(*field):
 #===============================================================================
 # 2D generic plotting code using container
 
-def plot_contour_row(fields, levels=0, transpose=False, extra_levels=None, range=None, 
-                     title='', var='', xlabel='x', ylabel='y',  cmap='RdBu_r', **kwargs):
+def plot_contour_row(fields, levels=0, cl_levels=None, range=None, 
+                     title='', var='', cmap=_default_cmap, **kwargs):
+
+# Parse kwargs
+
+    suptitle  = kwargs.get("suptitle", None)
+    xlabel    = kwargs.get("xlabel", 'x')
+    ylabel    = kwargs.get("ylabel", 'y')
 
     if len(fields) == 1:
          fig, ax = plt.subplots(1,1, constrained_layout=True, figsize=(10,10))
@@ -50,12 +57,16 @@ def plot_contour_row(fields, levels=0, transpose=False, extra_levels=None, range
             clevels = levels
             cint    = levels[1] - levels[0]
                  
-        CF = ax.contourf(x, y, fld, levels=clevels, cmap=cmap)
+        if type(clevels) != type(None):
 
-        if extra_levels:
+            CF = ax.contourf(x, y, fld, levels=clevels, cmap=cmap)
 
-           CC = ax.contour(x, y, fld, levels = extra_levels, colors='k', alpha=0.5)
-           ax.clabel(CC, extra_levels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
+            if cl_levels != None:
+                CC = ax.contour(x, y, fld, levels = cl_levels, colors='k', alpha=0.5)
+                ax.clabel(CC, cl_levels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
+            else:
+                CC = ax.contour(x, y, fld, levels = clevels[::2], colors='k', alpha=0.5)
+                ax.clabel(CC, clevels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
         
         ax.set_xlabel(xlabel, fontsize=10)
         ax.set_ylabel(ylabel, fontsize=10)
@@ -65,14 +76,37 @@ def plot_contour_row(fields, levels=0, transpose=False, extra_levels=None, range
 
         if range:
             ax.set_xlim(range)
+            ax.set_ylim(y.min(), y.max())
 
     # fig.subplots_adjust(right=0.9)
     cbar_ax = fig.add_axes([1.,0.175, 0.03, 0.7])
     fig.colorbar(CF, cax=cbar_ax)
 
+    if suptitle:
+        plt.suptitle(suptitle, fontsize=12)
+
     return fig, axes
+
 #===============================================================================
-def nice_mxmnintvl(dmin, dmax, outside=True, max_steps=25, cint=None, sym=False):
+
+def nice_clevels(dmin, dmax, **kwargs):
+    """ Extra function to generate the array of contour levels for plotting 
+        using "nice_mxmnintvl" code.  Removes an extra step.  Returns 4 args,
+        with the 4th the array of contour levels.  The first three values
+        are the same as "nice_mxmnintvl". """
+
+    amin, amax, cint = nice_mxmnintvl(dmin, dmax, **kwargs)
+
+    if cint == None:
+
+        return amin, amax, 0.0, None
+            
+    else:
+
+        return amin, amax, cint, np.arange(amin, amax+cint, cint) 
+
+#===============================================================================
+def nice_mxmnintvl(dmin, dmax, **kwargs):
     """ Description: Given min and max values of a data domain and the maximum
                      number of steps desired, determines "nice" values of 
                      for endpoints and spacing to create a series of steps 
@@ -113,11 +147,18 @@ def nice_mxmnintvl(dmin, dmax, outside=True, max_steps=25, cint=None, sym=False)
      
         Lou Wicker, August 2009 """
 
+# Parse kwargs
+
+    cint      = kwargs.get("cint", None)
+    max_steps = kwargs.get("max_steps", 25)
+    sym       = kwargs.get("sym", False)
+    outside   = kwargs.get("outside", True)
+    
     table = np.array([1.0,2.0,2.5,4.0,5.0,10.0,20.0,25.0,40.0,50.0,100.0,200.0,
                       250.0,400.0,500.0])
 
     if nearlyequal(dmax,dmin):
-        return None
+        return 0.0, 0.0, None
 
     # Help people like me who can never remember - flip max/min if inputted reversed
     if dmax < dmin:
@@ -147,37 +188,16 @@ def nice_mxmnintvl(dmin, dmax, outside=True, max_steps=25, cint=None, sym=False)
         cints = (ax1 - am1) / t
     
     # DEBUG LINE BELOW
-    # print t, am1, ax1, cints
+    print(t, am1, ax1, cints)
     
     if cint == None or cint == 0.0:   
         try:
             index = np.where(cints < max_steps)[0][0]
             return am1[index], ax1[index], cints[index]
         except IndexError:
-            return None
+            return None, None, None
     else:
         return am1, ax1, cint
-
-#===============================================================================
-
-def nice_clevels(dmin, dmax, **kwargs):
-    """ Extra function to generate the array of contour levels for plotting 
-        using "nice_mxmnintvl" code.  Removes an extra step.  Returns 4 args,
-        with the 4th the array of contour levels.  The first three values
-        are the same as "nice_mxmnintvl". """
-
-# Parse kwargs
-
-    cint      = kwargs.get("cint", None)
-    max_steps = kwargs.get("max_steps", 25)
-    sym       = kwargs.get("sym", False)
-    outside   = kwargs.get("outside", True)
-    
-    try:
-        amin, amax, cint = nice_mxmnintvl(dmin, dmax, cint=cint, max_steps=max_steps, sym=sym, outside=True)
-        return amin, amax, cint, N.arange(amin, amax+cint, cint) 
-    except:
-        return None
 
 #===============================================================================
 def kde_plotter(mdata, mlabel, mcolor, ax=None):
@@ -211,3 +231,18 @@ def kde_plotter(mdata, mlabel, mcolor, ax=None):
     ax.axvline(x=40.0, color='k', linestyle='--', linewidth=2.0)
     ax.axvline(x=80.0, color='k', linestyle='--', linewidth=2.0)
     ax.set_title('W' , fontsize=15)
+
+#===============================================================================
+def nearlyequal(a, b, sig_digit=None):
+    """ Measures the equality (for two floats), in unit of decimal significant
+        figures.  If no sigificant digit is specified, default is 7 digits. """
+
+    if sig_digit == None or sig_digit > 7:
+        sig_digit = 7
+    if a == b:
+        return True
+    difference = abs(a - b)
+    avg = (a + b)/2
+
+    return np.log10(avg / difference) >= sig_digit
+
