@@ -17,15 +17,48 @@ _default_cmap = plt.cm.viridis_r
 def container(*field):
 
     if len(field) == 1:
-        x = np.arange(field[0].shape[1])
-        y = np.arange(field[0].shape[0])
+        x1 = np.arange(field[0].shape[1])
+        x  = np.broadcast_to(x1[np.newaxis,:], field[0].shape)
+        y1 = np.arange(field[0].shape[0])
+        y  = np.broadcast_to(y1[:,np.newaxis], field[0].shape)
 
-        return xr.DataArray( field[0], dims=("ny", "nx"), coords={"X": (["nx"], x), 
-                                                                  "Y": (["ny"], y)} )
+        return xr.DataArray(field[0], dims=("ny", "nx"), coords={"X": (["ny", "nx"], x), 
+                                                                 "Y": (["ny", "nx"], y)} )
+
     elif len(field) == 3:
 
-        return xr.DataArray(field[2], dims=("ny", "nx"), coords={"X": (["ny", "nx"], field[0].data), 
-                                                                 "Y": (["ny", "nx"], field[1].data)} )
+        if debug:  print('X/Y/D: ',field[-3].shape,field[-2].shape,field[-1].shape)
+
+        if field[0].data.ndim == 1:
+            x =  np.broadcast_to(field[0][np.newaxis,:], field[2].shape)
+            if debug:  print('X: ',x.shape)
+        else:
+            x = field[0].data
+
+        if field[1].data.ndim == 1:
+            y =  np.broadcast_to(field[1][:,np.newaxis], field[2].shape)
+            if debug:  print('Y: ', y.shape)
+        else:
+            y = field[1].data
+
+        return xr.DataArray(field[2], dims=("ny", "nx"), coords={"X": (["ny", "nx"], x), 
+                                                                 "Y": (["ny", "nx"], y)} )
+
+    else:
+
+        if field[-1].ndim == 2:
+
+            print("\n --->Container Error: the number of items is not 1 or 3")
+            print(" --->Container Error: creating fake axis data and returning 2D array\n")
+
+            x = np.arange(field[-1].shape[1])
+            y = np.arange(field[-1].shape[0])
+            return xr.DataArray( field[-1], dims=("ny", "nx"), coords={"X": (["nx"], x), 
+                                                                       "Y": (["ny"], y)} )
+
+        else:
+            print("\n --->Container Error: data passed is weird!\n")
+
     
 #===============================================================================
 # 2D generic plotting code using container
