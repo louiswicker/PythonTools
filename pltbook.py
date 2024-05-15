@@ -22,27 +22,35 @@ def container(*field):
         y1 = np.arange(field[0].shape[0])
         y  = np.broadcast_to(y1[:,np.newaxis], field[0].shape)
 
-        return xr.DataArray(field[0], dims=("ny", "nx"), coords={"X": (["ny", "nx"], x), 
-                                                                 "Y": (["ny", "nx"], y)} )
+        return {'field': field[0], 'x': x, 'y': y}
+
+#       return xr.DataArray(field[0], name='field', dims=("ny", "nx"), coords={"X": (["ny", "nx"], x), 
+#                                                                              "Y": (["ny", "nx"], y)} )
 
     elif len(field) == 3:
 
         if debug:  print('X/Y/D: ',field[-3].shape,field[-2].shape,field[-1].shape)
 
-        if field[0].data.ndim == 1:
-            x =  np.broadcast_to(field[0][np.newaxis,:], field[2].shape)
+        if field[1].ndim == 1:
+            x =  np.broadcast_to(field[1][np.newaxis,:], field[0].shape)
             if debug:  print('X: ',x.shape)
         else:
-            x = field[0].data
+            x = field[1]
 
-        if field[1].data.ndim == 1:
-            y =  np.broadcast_to(field[1][:,np.newaxis], field[2].shape)
+        if field[2].ndim == 1:
+            y =  np.broadcast_to(field[2][:,np.newaxis], field[0].shape)
             if debug:  print('Y: ', y.shape)
         else:
-            y = field[1].data
+            y = field[2]
 
-        return xr.DataArray(field[2], dims=("ny", "nx"), coords={"X": (["ny", "nx"], x), 
-                                                                 "Y": (["ny", "nx"], y)} )
+        if debug:  print('FLD: ', field[0].max(), field[0].min())
+        if debug:  print('X: ', x.max(), x.min())
+        if debug:  print('Y: ', y.max(), y.min())
+
+        return {'field': field[0], 'x': x, 'y': y}
+
+#       return xr.DataArray(field[0], name='field', dims=("ny", "nx"), coords={"X": (["ny", "nx"], x), 
+#                                                                "Y": (["ny", "nx"], y)} )
 
     else:
 
@@ -53,8 +61,11 @@ def container(*field):
 
             x = np.arange(field[-1].shape[1])
             y = np.arange(field[-1].shape[0])
-            return xr.DataArray( field[-1], dims=("ny", "nx"), coords={"X": (["nx"], x), 
-                                                                       "Y": (["ny"], y)} )
+
+            return {'field': None, 'x': x, 'y': y}
+
+#           return xr.DataArray( field[-1], dims=("ny", "nx"), coords={"X": (["nx"], x), 
+#                                                                      "Y": (["ny"], y)} )
 
         else:
             print("\n --->Container Error: data passed is weird!\n")
@@ -71,54 +82,72 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     suptitle  = kwargs.get("suptitle", None)
     xlabel    = kwargs.get("xlabel", 'x')
     ylabel    = kwargs.get("ylabel", 'y')
+    ax_in     = kwargs.get("ax_in", None)
 
-    if len(fields) == 1:
-         fig, ax = plt.subplots(1,1, constrained_layout=True, figsize=(10,10))
-         axes = [ax,]
+    if ax_in.any() == None:
+        if len(fields) == 1:
+            fig, axes = plt.subplots(1,1, constrained_layout=True, figsize=(10,10), **kwargs)
+            axes = [axes,]
+        else:
+            fig, axes = plt.subplots(1,len(fields), constrained_layout=True, figsize=(5*len(fields),5), **kwargs)
     else:
-        fig, axes = plt.subplots(1,len(fields), constrained_layout=True, figsize=(5*len(fields),5))
+        axes = ax_in
 
     for ax, field in zip(axes, fields):
 
-        fld = field.values
-        x   = field.X.values
-        y   = field.Y.values
+        fld = field['field']
+        x   = field['x']
+        y   = field['y']
+
+        if debug:
+            print('PLOT_ROW_CONTOUR:  ',fld.max(), fld.min())
+            print('PLOT_ROW_CONTOUR:  ',x.max(), x.min())
+            print('PLOT_ROW_CONTOUR:  ',y.max(), y.min())
         
         if levels == 0:
             amin, amax, cint, clevels = nice_clevels(fld.min(), fld.max(), **kwargs)
         else:
             clevels = levels
             cint    = levels[1] - levels[0]
+
+        if debug > 10:
+            print('PLOT_ROW_CONTOUR:  ', clevels )
                  
         if type(clevels) != type(None):
 
-            CF = ax.contourf(x, y, fld, levels=clevels, cmap=cmap)
+            CF = ax.contourf(x, y, fld, levels=clevels, cmap=cmap, **kwargs)
 
             if cl_levels != None:
-                CC = ax.contour(x, y, fld, levels = cl_levels, colors='k', alpha=0.5)
+                CC = ax.contour(x, y, fld, levels = cl_levels, colors='k', alpha=0.5, **kwargs);
                 ax.clabel(CC, cl_levels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
             else:
-                CC = ax.contour(x, y, fld, levels = clevels[::2], colors='k', alpha=0.5)
+                CC = ax.contour(x, y, fld, levels = clevels[::2], colors='k', alpha=0.5, **kwargs);
                 ax.clabel(CC, clevels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
         
-        ax.set_xlabel(xlabel, fontsize=10)
-        ax.set_ylabel(ylabel, fontsize=10)
+        if ax_in.any() == None:
+            ax.set_xlabel(xlabel, fontsize=10)
+            ax.set_ylabel(ylabel, fontsize=10)
         
         ax.set_title("%s: %s  Max: %6.2f  Min: %6.2f CINT: %6.2f" % (title, var, fld.max(), fld.min(), cint), 
                     fontsize=10)
 
-        if range:
+        if ax_in.any() == None and range:
             ax.set_xlim(range)
             ax.set_ylim(y.min(), y.max())
 
     # fig.subplots_adjust(right=0.9)
-    cbar_ax = fig.add_axes([1.,0.175, 0.03, 0.7])
-    fig.colorbar(CF, cax=cbar_ax)
+
+    if ax_in.any() == None:
+        cbar_ax = fig.add_axes([1.,0.175, 0.03, 0.7])
+        fig.colorbar(CF, cax=cbar_ax)
 
     if suptitle:
         plt.suptitle(suptitle, fontsize=12)
 
-    return fig, axes
+    if ax_in.any() == None:
+        return fig, axes
+    else:
+        return
 
 #===============================================================================
 
@@ -129,6 +158,9 @@ def nice_clevels(dmin, dmax, **kwargs):
         are the same as "nice_mxmnintvl". """
 
     amin, amax, cint = nice_mxmnintvl(dmin, dmax, **kwargs)
+
+    if debug > 10:
+        print('NICE_CLEVELS:  ',amax, amin, cint )
 
     if cint == None:
 
@@ -194,6 +226,7 @@ def nice_mxmnintvl(dmin, dmax, **kwargs):
         return 0.0, 0.0, None
 
     # Help people like me who can never remember - flip max/min if inputted reversed
+
     if dmax < dmin:
         amax = dmin
         amin = dmax
@@ -221,7 +254,8 @@ def nice_mxmnintvl(dmin, dmax, **kwargs):
         cints = (ax1 - am1) / t
     
     # DEBUG LINE BELOW
-   #print(t, am1, ax1, cints)
+    if debug > 10:
+        print('NICE_MAXMIN:  ',t, am1, ax1, cints)
     
     if cint == None or cint == 0.0:   
         try:
