@@ -5,6 +5,9 @@ import netCDF4
 import xarray as xr
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
+import cartopy.io.shapereader as shpreader
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 hscale = 1.0 
 debug  = False
@@ -75,7 +78,7 @@ def container(*field):
 # 2D generic plotting code using container
 
 def plot_contour_row(fields, levels=0, cl_levels=None, range=None, 
-                     title='', var='', cmap=_default_cmap, **kwargs):
+                     ptitle=[], suptitle=None, var='', cmap=_default_cmap, **kwargs):
 
 # Parse kwargs
 
@@ -83,6 +86,9 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     xlabel    = kwargs.get("xlabel", 'x')
     ylabel    = kwargs.get("ylabel", 'y')
     ax_in     = kwargs.get("ax_in", None)
+
+    if len(fields) > len(ptitle):
+        ptitle = ['NAME'] * len(fields)
 
     if ax_in.any() == None:
         if len(fields) == 1:
@@ -93,7 +99,7 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     else:
         axes = ax_in
 
-    for ax, field in zip(axes, fields):
+    for ax, field, title in zip(axes, fields, ptitle):
 
         fld = field['field']
         x   = field['x']
@@ -141,7 +147,7 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
         cbar_ax = fig.add_axes([1.,0.175, 0.03, 0.7])
         fig.colorbar(CF, cax=cbar_ax)
 
-    if suptitle:
+    if suptitle != None:
         plt.suptitle(suptitle, fontsize=12)
 
     if ax_in.any() == None:
@@ -267,37 +273,43 @@ def nice_mxmnintvl(dmin, dmax, **kwargs):
         return am1, ax1, cint
 
 #===============================================================================
-def kde_plotter(mdata, mlabel, mcolor, ax=None):
-
-    xlim = [-15,55]
+def setup_map(npanels, extent=None, map_details=False):
     
-    if ax == None:
-        fig, ax = plt.subplots(1,1, constrained_layout=True,figsize=(7,7))
+    def colorize_state(geometry):
+        facecolor = (0.93, 0.93, 0.85)
+        return {'facecolor': facecolor, 'edgecolor': 'black'}
 
-    for data, label, color in zip(mdata,mlabel,mcolor):
-        # print(label, color)
-        
-        hist, bin_edges = np.histogram(data.flatten())
-
-        data_no_zero = data.flatten()
+    shapename  = 'admin_1_states_provinces_lakes'
     
-        eval_points = np.linspace(np.min(bin_edges), np.max(bin_edges))
-        kde_sp      = gaussian_kde(data_no_zero, bw_method=0.9)
-        y_sp        = kde_sp.pdf(eval_points)
-        
-        ax.plot(eval_points, y_sp, color=color, linewidth=2.0, label='%s  %d' % (label,data_no_zero.shape[0]))
-             
-    ax.set_xlim(xlim[:])
-    ax.set_yscale("log")
-#    ax.set_xscale("log", base=2.0)
-    plt.grid(axis='y', alpha=0.75)
-    plt.grid(axis='x', alpha=0.75)
-    ax.set_xlabel('W (m/s)',fontsize=15)
-    ax.set_ylabel('Density',fontsize=15)
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large')
-    ax.axvline(x=40.0, color='k', linestyle='--', linewidth=2.0)
-    ax.axvline(x=80.0, color='k', linestyle='--', linewidth=2.0)
-    ax.set_title('W' , fontsize=15)
+    states_shp = shpreader.natural_earth(resolution='110m',category='cultural', name=shapename)
+
+    theproj = ccrs.PlateCarree() #choose another projection to obtain non-rectangular grid
+
+    fig, ax = plt.subplots(1,npanels, figsize=(5*npanels,5), subplot_kw={'projection': theproj})  #, 'axisbg': 'w'
+
+    for n in np.arange(npanels):
+        ax[n].add_feature(cfeature.COASTLINE)
+        ax[n].add_feature(cfeature.STATES, edgecolor='black')
+
+    if map_details:
+        #ax[0].add_feature(cfeature.OCEAN, facecolor='#CCFEFF')
+        ax[0].add_feature(cfeature.LAKES, facecolor='#CCFEFF')
+        ax[0].add_feature(cfeature.RIVERS, edgecolor='#CCFEFF')
+        ax[0].add_feature(cfeature.LAND, facecolor='#FFE9B5')
+
+    if extent != None:
+        for n in np.arange(npanels):
+            ax[n].set_extent(extent)
+            
+    return fig, ax
+    if sig_digit == None or sig_digit > 7:
+        sig_digit = 7
+    if a == b:
+        return True
+    difference = abs(a - b)
+    avg = (a + b)/2
+
+    return np.log10(avg / difference) >= sig_digit
 
 #===============================================================================
 def nearlyequal(a, b, sig_digit=None):
@@ -312,4 +324,3 @@ def nearlyequal(a, b, sig_digit=None):
     avg = (a + b)/2
 
     return np.log10(avg / difference) >= sig_digit
-
