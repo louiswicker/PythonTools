@@ -9,6 +9,9 @@ import cartopy.io.shapereader as shpreader
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
+import warnings
+warnings.filterwarnings("ignore")
+
 hscale = 1.0 
 debug  = False
 
@@ -78,7 +81,7 @@ def container(*field):
 # 2D generic plotting code using container
 
 def plot_contour_row(fields, levels=0, cl_levels=None, range=None, 
-                     ptitle=[], suptitle=None, var='', cmap=_default_cmap, **kwargs):
+                     ptitle=[], var='', cmap=_default_cmap, **kwargs):
 
 # Parse kwargs
 
@@ -86,6 +89,7 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     xlabel    = kwargs.get("xlabel", 'x')
     ylabel    = kwargs.get("ylabel", 'y')
     ax_in     = kwargs.get("ax_in", None)
+    fmask     = kwargs.get("fmask", None)
 
     if len(fields) > len(ptitle):
         ptitle = ['NAME'] * len(fields)
@@ -102,6 +106,10 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     for ax, field, title in zip(axes, fields, ptitle):
 
         fld = field['field']
+
+        if fmask != None:
+            fld = np.ma.masked_array( fld, mask = ( np.abs(fld) < fmask ) )
+        
         x   = field['x']
         y   = field['y']
 
@@ -134,7 +142,7 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
             ax.set_xlabel(xlabel, fontsize=10)
             ax.set_ylabel(ylabel, fontsize=10)
         
-        ax.set_title("%s: %s  Max: %6.2f  Min: %6.2f CINT: %6.2f" % (title, var, fld.max(), fld.min(), cint), 
+        ax.set_title("%s:   %s  Max: %7.4f  Min: %7.4f CINT: %6.4f" % (title, var, fld.max(), fld.min(), cint), 
                     fontsize=10)
 
         if ax_in.any() == None and range:
@@ -220,6 +228,7 @@ def nice_mxmnintvl(dmin, dmax, **kwargs):
 
 # Parse kwargs
 
+    climits   = kwargs.get("climits", None)
     cint      = kwargs.get("cint", None)
     max_steps = kwargs.get("max_steps", 25)
     sym       = kwargs.get("sym", False)
@@ -244,6 +253,10 @@ def nice_mxmnintvl(dmin, dmax, **kwargs):
         smax = max(amax.max(), amin.min())
         amax = smax
         amin = -smax
+
+    if climits:
+        amax = climits[1]
+        amin = climits[0]
 
     d = 10.0**(np.floor(np.log10(amax - amin)) - 2.0)
     if cint == None or cint == 0.0:
@@ -285,7 +298,10 @@ def setup_map(npanels, extent=None, map_details=False):
 
     theproj = ccrs.PlateCarree() #choose another projection to obtain non-rectangular grid
 
-    fig, ax = plt.subplots(1,npanels, figsize=(5*npanels,5), subplot_kw={'projection': theproj})  #, 'axisbg': 'w'
+    fig, ax = plt.subplots(1,npanels, figsize=(5*npanels,5), 
+              subplot_kw={'projection': theproj}, constrained_layout=True)  #, 'axisbg': 'w'
+
+#   plt.subplots_adjust(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.4, hspace=0.4)
 
     for n in np.arange(npanels):
         ax[n].add_feature(cfeature.COASTLINE)
@@ -302,14 +318,6 @@ def setup_map(npanels, extent=None, map_details=False):
             ax[n].set_extent(extent)
             
     return fig, ax
-    if sig_digit == None or sig_digit > 7:
-        sig_digit = 7
-    if a == b:
-        return True
-    difference = abs(a - b)
-    avg = (a + b)/2
-
-    return np.log10(avg / difference) >= sig_digit
 
 #===============================================================================
 def nearlyequal(a, b, sig_digit=None):
@@ -324,3 +332,4 @@ def nearlyequal(a, b, sig_digit=None):
     avg = (a + b)/2
 
     return np.log10(avg / difference) >= sig_digit
+
