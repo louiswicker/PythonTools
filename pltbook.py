@@ -286,7 +286,7 @@ def nice_mxmnintvl(dmin, dmax, **kwargs):
         return am1, ax1, cint
 
 #===============================================================================
-def setup_map(npanels, extent=None, map_details=False):
+def setup_map(npanels, extent=None, draw_gridlines=False, map_details=False):
     
     def colorize_state(geometry):
         facecolor = (0.93, 0.93, 0.85)
@@ -306,6 +306,11 @@ def setup_map(npanels, extent=None, map_details=False):
     for n in np.arange(npanels):
         ax[n].add_feature(cfeature.COASTLINE)
         ax[n].add_feature(cfeature.STATES, edgecolor='black')
+
+        if draw_gridlines:
+            gl = ax[n].gridlines(draw_labels=True, linewidth=1, linestyle='--')
+            gl.top_labels = False
+            gl.right_labels = False
 
     if map_details:
         #ax[0].add_feature(cfeature.OCEAN, facecolor='#CCFEFF')
