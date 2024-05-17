@@ -8,6 +8,11 @@ from scipy.stats import gaussian_kde
 import cartopy.io.shapereader as shpreader
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import copy
+from metpy.plots import ctables
+import matplotlib.colors as mcolors
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -90,6 +95,10 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     ylabel    = kwargs.get("ylabel", 'y')
     ax_in     = kwargs.get("ax_in", None)
     fmask     = kwargs.get("fmask", None)
+    cbar      = kwargs.get("cbar", False)
+    plot_ref  = kwargs.get("plot_ref", False)
+
+    cbar = []
 
     if len(fields) > len(ptitle):
         ptitle = ['NAME'] * len(fields)
@@ -97,11 +106,12 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     if ax_in.any() == None:
         if len(fields) == 1:
             fig, axes = plt.subplots(1,1, constrained_layout=True, figsize=(10,10), **kwargs)
-            axes = [axes,]
+            axes = list(axes)
         else:
             fig, axes = plt.subplots(1,len(fields), constrained_layout=True, figsize=(5*len(fields),5), **kwargs)
     else:
-        axes = ax_in
+        axes = list(ax_in)
+        print(axes)
 
     for ax, field, title in zip(axes, fields, ptitle):
 
@@ -127,16 +137,29 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
         if debug > 10:
             print('PLOT_ROW_CONTOUR:  ', clevels )
                  
-        if type(clevels) != type(None):
+        if plot_ref:
 
-            CF = ax.contourf(x, y, fld, levels=clevels, cmap=cmap, **kwargs)
+            mycolors = copy.deepcopy(ctables.colortables['NWSReflectivity'])
+            mycolors.insert(0,(1,1,1))
+            color_map = mcolors.ListedColormap(mycolors)
+            cmin = 0.0
+            cmax = 85.0
+            cinc = 5.0
+            cntlevels = list(np.arange(cmin,cmax,5.0))
+            cbar.append( ax.contourf(x, y, fld, levels=cntlevels, cmap=color_map, **kwargs) )
 
-            if cl_levels != None:
-                CC = ax.contour(x, y, fld, levels = cl_levels, colors='k', alpha=0.5, **kwargs);
-                ax.clabel(CC, cl_levels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
-            else:
-                CC = ax.contour(x, y, fld, levels = clevels[::2], colors='k', alpha=0.5, **kwargs);
-                ax.clabel(CC, clevels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
+        else:
+
+            if type(clevels) != type(None):
+
+                cbar.append( ax.contourf(x, y, fld, levels=clevels, cmap=cmap, **kwargs) )
+
+                if cl_levels != None:
+                    CC = ax.contour(x, y, fld, levels = cl_levels, colors='k', alpha=0.5, **kwargs);
+                    ax.clabel(CC, cl_levels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
+                else:
+                    CC = ax.contour(x, y, fld, levels = clevels[::2], colors='k', alpha=0.5, **kwargs);
+                    ax.clabel(CC, clevels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
         
         if ax_in.any() == None:
             ax.set_xlabel(xlabel, fontsize=10)
@@ -151,9 +174,13 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
 
     # fig.subplots_adjust(right=0.9)
 
-    if ax_in.any() == None:
-        cbar_ax = fig.add_axes([1.,0.175, 0.03, 0.7])
-        fig.colorbar(CF, cax=cbar_ax)
+    if cbar:
+        cb = plt.colorbar(cbar[-1], shrink=0.8, pad=0.05)
+        cb.set_label(var.upper())
+
+#   if ax_in.any() == None:
+#       cbar_ax = fig.add_axes([1.,0.175, 0.03, 0.7])
+#       fig.colorbar(CF, cax=cbar_ax)
 
     if suptitle != None:
         plt.suptitle(suptitle, fontsize=12)
@@ -300,6 +327,13 @@ def setup_map(npanels, extent=None, draw_gridlines=False, map_details=False):
 
     fig, ax = plt.subplots(1,npanels, figsize=(5*npanels,5), 
               subplot_kw={'projection': theproj}, constrained_layout=True)  #, 'axisbg': 'w'
+
+#   print(type(ax))
+#   if ( type(ax) != type(np.zeros([1,1]))):
+#       print('000')
+#       ax = np.array([ax,])
+#
+#   print(type(ax))
 
 #   plt.subplots_adjust(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.4, hspace=0.4)
 
