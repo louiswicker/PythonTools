@@ -40,16 +40,16 @@ def container(*field):
 
     elif len(field) == 3:
 
-        if debug:  print('X/Y/D: ',field[-3].shape,field[-2].shape,field[-1].shape)
+        if debug:  print('X/Y/D: ',field[-3].shape, field[-2].shape, field[-1].shape)
 
         if field[1].ndim == 1:
-            x =  np.broadcast_to(field[1][np.newaxis,:], field[0].shape)
+            x = np.broadcast_to(field[1][np.newaxis,:], field[0].shape)
             if debug:  print('X: ',x.shape)
         else:
             x = field[1]
 
         if field[2].ndim == 1:
-            y =  np.broadcast_to(field[2][:,np.newaxis], field[0].shape)
+            y = np.broadcast_to(field[2][:,np.newaxis], field[0].shape)
             if debug:  print('Y: ', y.shape)
         else:
             y = field[2]
@@ -93,24 +93,24 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     suptitle  = kwargs.get("suptitle", None)
     xlabel    = kwargs.get("xlabel", 'x')
     ylabel    = kwargs.get("ylabel", 'y')
-    ax_in     = kwargs.get("ax_in", None)
     fmask     = kwargs.get("fmask", None)
     cbar      = kwargs.get("cbar", False)
     plot_ref  = kwargs.get("plot_ref", False)
+    ax_in     = kwargs.get("ax_in", False)
 
     cbar = []
 
     if len(fields) > len(ptitle):
         ptitle = ['NAME'] * len(fields)
 
-    if ax_in.any() == None:
+    if  ax_in == False:
         if len(fields) == 1:
-            fig, axes = plt.subplots(1,1, constrained_layout=True, figsize=(10,10), **kwargs)
+            fig, axes = plt.subplots(1,1, constrained_layout=True, figsize=(10,10))
             axes = list(axes)
         else:
-            fig, axes = plt.subplots(1,len(fields), constrained_layout=True, figsize=(5*len(fields),5), **kwargs)
+            fig, axes = plt.subplots(1,len(fields), constrained_layout=True, figsize=(5*len(fields),5))
     else:
-        axes = list(ax_in)
+        axes = ax_in
         print(axes)
 
     for ax, field, title in zip(axes, fields, ptitle):
@@ -161,14 +161,14 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
                     CC = ax.contour(x, y, fld, levels = clevels[::2], colors='k', alpha=0.5, **kwargs);
                     ax.clabel(CC, clevels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
         
-        if ax_in.any() == None:
+        if ax_in == False:
             ax.set_xlabel(xlabel, fontsize=10)
             ax.set_ylabel(ylabel, fontsize=10)
         
         ax.set_title("%s:   %s  Max: %7.4f  Min: %7.4f CINT: %6.4f" % (title, var, fld.max(), fld.min(), cint), 
                     fontsize=10)
 
-        if ax_in.any() == None and range:
+        if ax_in == False and range:
             ax.set_xlim(range)
             ax.set_ylim(y.min(), y.max())
 
@@ -185,7 +185,7 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
     if suptitle != None:
         plt.suptitle(suptitle, fontsize=12)
 
-    if ax_in.any() == None:
+    if ax_in == False:
         return fig, axes
     else:
         return
