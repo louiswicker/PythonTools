@@ -18,7 +18,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 hscale = 1.0 
-debug  = False
+debug  = True
 
 _default_cmap = plt.cm.viridis_r
 
@@ -40,16 +40,32 @@ def container(*field):
 
     elif len(field) == 3:
 
-        if debug:  print('X/Y/D: ',field[-3].shape, field[-2].shape, field[-1].shape)
+        if debug:  print('X/Y/2D: ',field[0].shape, field[1].shape, field[2].shape)
 
         if field[1].ndim == 1:
-            x = np.broadcast_to(field[1][np.newaxis,:], field[0].shape)
+#           if field[1].shape[0] == field[0].shape[0]:
+#           x = np.broadcast_to(field[1][:], field[0].shape)
+#               x = np.hstack([field[1]]*field[0].shape[1]).reshape(field[0].shape)
+
+            if field[1].shape[0] == field[0].shape[0]: 
+                x = field[2]
+            else:
+                x = field[1]
+
             if debug:  print('X: ',x.shape)
+
         else:
             x = field[1]
 
         if field[2].ndim == 1:
-            y = np.broadcast_to(field[2][:,np.newaxis], field[0].shape)
+#           y = np.broadcast_to(field[2][np.newaxis, :], field[0].shape)
+#           y = np.hstack([field[2]]*field[0].shape[0]).reshape(field[0].shape)
+
+            if field[2].shape[0] == field[0].shape[1]: 
+                y = field[1]
+            else:
+                y = field[2]
+
             if debug:  print('Y: ', y.shape)
         else:
             y = field[2]
@@ -85,7 +101,7 @@ def container(*field):
 #===============================================================================
 # 2D generic plotting code using container
 
-def plot_contour_row(fields, levels=0, cl_levels=None, range=None, 
+def plot_contour_row(fields, levels=0, cl_levels=None, xlim=None, ylim=None, 
                      ptitle=[], var='', cmap=_default_cmap, **kwargs):
 
 # Parse kwargs
@@ -168,9 +184,10 @@ def plot_contour_row(fields, levels=0, cl_levels=None, range=None,
         ax.set_title("%s:   %s  Max: %7.4f  Min: %7.4f CINT: %6.4f" % (title, var, fld.max(), fld.min(), cint), 
                     fontsize=10)
 
-        if ax_in == False and range:
-            ax.set_xlim(range)
-            ax.set_ylim(y.min(), y.max())
+        if ax_in == False and xlim:
+            ax.set_xlim(xlim)
+        if ax_in == False and ylim:
+            ax.set_ylim(ylim)
 
     # fig.subplots_adjust(right=0.9)
 
