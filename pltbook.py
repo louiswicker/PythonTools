@@ -18,9 +18,59 @@ import warnings
 warnings.filterwarnings("ignore")
 
 hscale = 1.0 
-debug  = True
+debug  = False
 
 _default_cmap = plt.cm.viridis_r
+
+_default_lw   = 1.0
+
+
+#===============================================================================
+# A function to find maximum value of array in N dimensions.  Returns indices 
+#   and the value of the maximum
+
+def find_max_index_ND(array_nd, label=None):
+    """Finds the index of the maximum value in a ND NumPy array.
+
+    Args:
+        array_nd: A ND NumPy array.
+        label:    A label used to print info, optional
+
+    Returns:
+        A tuple containing the indices of the maximum value and the maximum value
+    """
+    
+    flat_index = np.argmax(array_nd)
+    indices = np.unravel_index(flat_index, array_nd.shape)
+
+    if label:
+        print(f"{label} maximum value is at index: (indices) Value: {array_nd[indices]}")
+        
+    return indices, array_nd[indices]
+
+
+#===============================================================================
+# A function to find min value of array in N dimensions.  Returns indices 
+#   and the value of the minimum
+
+def find_min_index_ND(array_nd, label=None):
+    """Finds the index of the maximum value in a ND NumPy array.
+
+    Args:
+        array_nd: A ND NumPy array.
+        label:    A label used to print info, optional
+
+    Returns:
+        A tuple containing the indices of the maximum value and the maximum value
+    """
+    
+    flat_index = np.argmin(array_nd)
+    indices = np.unravel_index(flat_index, array_nd.shape)
+
+    if label:
+        print(f"{label} minimum value is at index: (indices) Value: {array_nd[indices]}")
+        
+    return indices, array_nd[indices]
 
 #===============================================================================
 # 2D xarray container for plotting fields
@@ -101,8 +151,17 @@ def container(*field):
 #===============================================================================
 # 2D generic plotting code using container
 
-def plot_contour_row(fields, levels=0, cl_levels=None, xlim=None, ylim=None, 
-                     ptitle=[], var='', cmap=_default_cmap, **kwargs):
+def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
+                     clevels=0, color_levels=None, cmap=_default_cmap, 
+                     xlim=None, ylim=None, refl_plot=False,
+                     **kwargs):
+                     
+    """
+       plot_type == 0: (default) color-filled contour map overlaid with line contours (every other one)
+       plot_type == 1: simple contour line plot
+       plot_type == 2: simple color_filled plot_contour_row
+       
+    """
 
 # Parse kwargs
 
@@ -112,29 +171,33 @@ def plot_contour_row(fields, levels=0, cl_levels=None, xlim=None, ylim=None,
     fmask     = kwargs.get("fmask", None)
     cbar      = kwargs.get("cbar", False)
     plot_ref  = kwargs.get("plot_ref", False)
-    ax_in     = kwargs.get("ax_in", False)
+    mask_less = kwargs.get("mask_less", None)
+    mask_more = kwargs.get("mask_more", None)
+    fancy_lw  = kwargs.get("fancy_lw", False)
 
     cbar = []
 
     if len(fields) > len(ptitle):
-        ptitle = ['NAME'] * len(fields)
+        ptitle = [''] * len(fields)
 
     if  ax_in == False:
         if len(fields) == 1:
-            fig, axes = plt.subplots(1,1, constrained_layout=True, figsize=(10,10))
-            axes = list(axes)
+            fig, axes = plt.subplots(1, 1, constrained_layout=True, figsize=(10,10))
+            axes = [axes,]
         else:
-            fig, axes = plt.subplots(1,len(fields), constrained_layout=True, figsize=(5*len(fields),5))
+            fig, axes = plt.subplots(1, len(fields), constrained_layout=True, figsize=(5*len(fields),5))
     else:
         axes = ax_in
-        print(axes)
 
     for ax, field, title in zip(axes, fields, ptitle):
 
         fld = field['field']
 
-        if fmask != None:
-            fld = np.ma.masked_array( fld, mask = ( np.abs(fld) < fmask ) )
+        if mask_less != None:
+            fld = np.ma.masked_less( fld, mask_less )
+            
+        if mask_more != None:
+            fld = np.ma.masked_more( fld, mask_more )
         
         x   = field['x']
         y   = field['y']
@@ -144,45 +207,83 @@ def plot_contour_row(fields, levels=0, cl_levels=None, xlim=None, ylim=None,
             print('PLOT_ROW_CONTOUR:  ',x.max(), x.min())
             print('PLOT_ROW_CONTOUR:  ',y.max(), y.min())
         
-        if levels == 0:
-            amin, amax, cint, clevels = nice_clevels(fld.min(), fld.max(), **kwargs)
+        if type(clevels) == None:
+            amin, amax, cint, cint_levels = nice_clevels(fld.min(), fld.max(), **kwargs)
+            cint    = cint_levels[1] - cintlevels[0]
         else:
-            clevels = levels
-            cint    = levels[1] - levels[0]
+            cint_levels = clevels
+            cint        = cint_levels[1] - cint_levels[0]
 
         if debug > 10:
-            print('PLOT_ROW_CONTOUR:  ', clevels )
-                 
-        if plot_ref:
-
-            mycolors = copy.deepcopy(ctables.colortables['NWSReflectivity'])
-            mycolors.insert(0,(1,1,1))
-            color_map = mcolors.ListedColormap(mycolors)
-            cmin = 0.0
-            cmax = 85.0
-            cinc = 5.0
-            cntlevels = list(np.arange(cmin,cmax,5.0))
-            cbar.append( ax.contourf(x, y, fld, levels=cntlevels, cmap=color_map, **kwargs) )
-
+            print(f"PLOT_ROW_CONTOUR:  {cint_levels}")
+            
+        if fancy_lw:
+            lwidths = [0.75, 2] * (len(cint_levels) // 2)
         else:
+            lwidths = [_default_lw,] * len(cinit_levels)
 
-            if type(clevels) != type(None):
+#         if refl_plot:  # special case for generating colormap and variable limits.
+# 
+#             mycolors = copy.deepcopy(ctables.colortables['NWSReflectivity'])
+#             mycolors.insert(0,(1,1,1))
+#             color_map = mcolors.ListedColormap(mycolors)
+#             cmin = 0.0
+#             cmax = 85.0
+#             cinc = 5.0
+#             cntlevels = list(np.arange(cmin,cmax,5.0))
+#             cbar.append( ax.contourf(x, y, fld, levels=cntlevels, cmap=color_map, **kwargs) )
+# 
+#         else:
+        
+        if plot_type == 0:
+   
+            cbar.append( ax.contourf(x, y, fld, levels=cint_levels, cmap=cmap, **kwargs) )
+           
+            CC = ax.contour(x, y, fld, levels = cint_levels[::2], colors='k', 
+                            linewidths=lwidths, alpha=0.5, **kwargs);
+            ax.clabel(CC, cint_levels[::2],  inline=1, fmt='%2.2f', fontsize=6) # label every second level
+               
+        if plot_type == 1:
 
-                cbar.append( ax.contourf(x, y, fld, levels=clevels, cmap=cmap, **kwargs) )
+            CC = ax.contour(x, y, fld, levels = cint_levels[::2], colors='k', 
+                            linewidths=lwidths, alpha=1.0, **kwargs);
+            ax.clabel(CC, cint_levels[::2],  inline=1, fmt='%2.2f', fontsize=6) # label every second level
+             
 
-                if cl_levels != None:
-                    CC = ax.contour(x, y, fld, levels = cl_levels, colors='k', alpha=0.5, **kwargs);
-                    ax.clabel(CC, cl_levels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
-                else:
-                    CC = ax.contour(x, y, fld, levels = clevels[::2], colors='k', alpha=0.5, **kwargs);
-                    ax.clabel(CC, clevels[::2], inline=1, fmt='%2.0f', fontsize=14) # label every second level
+        if plot_type == 2:
+        
+            cbar.append( ax.contourf(x, y, fld, levels=color_levels, cmap=cmap, alpha=0.5, **kwargs) )
+
+            CC = ax.contour(x, y, fld, levels = cint_levels[::2], colors='k', 
+                            linewidths=lwidths, alpha=1.0, **kwargs);
+            ax.clabel(CC, cint_levels[::2],  inline=1, fmt='%2.2f', fontsize=6) # label every second level
+
+#             if type(clevels) != type(None):
+#             
+#                 if( cmap != None ):
+#                     cbar.append( ax.contourf(x, y, fld, levels=clevels, cmap=cmap, **kwargs) )
+#                     overlay_alpha = 0.5
+#                 else:
+#                     overlay_alpha = 1.0
+#                     
+#                 if fancy_lw:
+#                     lwidths = [0.75, 2] * (len(levels) // 2)
+#                 else:
+#                     lwidths = [_default_lw,] * len(levels)
+# 
+#                 if cl_levels != None:
+#                     CC = ax.contour(x, y, fld, levels = clevels, colors='k', alpha=overlay_alpha, **kwargs);
+#                     ax.clabel(CC, cl_levels[::2], inline=1, fmt='%2.2f', fontsize=6) # label every second level
+#                 else:
+#                     CC = ax.contour(x, y, fld, levels = clevels, colors='k', 
+#                                     linewidths=lwidths, alpha=overlay_alpha, **kwargs);
+#                     ax.clabel(CC, clevels[::2],  inline=1, fmt='%2.2f', fontsize=6) # label every second level
         
         if ax_in == False:
             ax.set_xlabel(xlabel, fontsize=10)
             ax.set_ylabel(ylabel, fontsize=10)
         
-        ax.set_title("%s:   %s  Max: %7.4f  Min: %7.4f CINT: %6.4f" % (title, var, fld.max(), fld.min(), cint), 
-                    fontsize=10)
+        ax.set_title(f"{title}: {var}  Max: {fld.max():.2f}  Min: {fld.min():.2f} CINT: {cint:.2f}", fontsize=10)
 
         if ax_in == False and xlim:
             ax.set_xlim(xlim)

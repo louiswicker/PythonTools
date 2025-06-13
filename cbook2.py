@@ -9,6 +9,22 @@ hscale = 1.0
 debug  = False
 
 #===============================================================================
+from contextlib import contextmanager  
+import time  
+
+@contextmanager  
+def timer():  
+    start = time.time()  
+    yield  
+    end = time.time()  
+    print(f"Elapsed time: {end - start:.2f} seconds")  
+
+# Usage  
+with timer():  
+    time.sleep(2)  # Simulating a task
+
+
+#===============================================================================
 def GetModelTime(file_obj, DateTime, index=False, closest=False):
     """ file_obj is a netCDF data set pointer, and DateTime is a tuple of (2003,5,8,22,10,0)
 
