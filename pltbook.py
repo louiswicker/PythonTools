@@ -18,11 +18,11 @@ import warnings
 warnings.filterwarnings("ignore")
 
 hscale = 1.0 
-debug  = False
+debug  = 11.
 
 _default_cmap = plt.cm.viridis
 
-_default_lw   = 1.0
+_default_lw   = 1.
 
 
 
@@ -77,7 +77,7 @@ def find_min_index_ND(array_nd, label=None):
 #===============================================================================
 # 2D xarray container for plotting fields
 
-def container(*field):
+def container(*field, **kwargs):
 
     if len(field) == 1:
         x1 = np.arange(field[0].shape[1])
@@ -125,11 +125,16 @@ def container(*field):
         if debug:  print('FLD: ', field[0].max(), field[0].min())
         if debug:  print('X: ', x.max(), x.min())
         if debug:  print('Y: ', y.max(), y.min())
-
-        return {'field': field[0], 'x': x, 'y': y}
-
-#       return xr.DataArray(field[0], name='field', dims=("ny", "nx"), coords={"X": (["ny", "nx"], x), 
-#                                                                "Y": (["ny", "nx"], y)} )
+        
+        cint     = kwargs.get("cint", 0.0)
+        cmap     = kwargs.get("cmap", None)
+        mask_in  = kwargs.get("mask_in", None)
+        mask_out = kwargs.get("mask_out", None)
+        
+        return {'field': field[0], 
+                'x': x, 'y': y, 
+                'cint':cint, 'cmap': cmap,
+                'mask_in':mask_in, 'mask_out':mask_out}
 
     else:
 
@@ -155,7 +160,7 @@ def container(*field):
 
 def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
                      input_cint=0.0, color_levels=None, cmap=_default_cmap, 
-                     xlim=None, ylim=None, **kwargs):
+                     xlim=None, ylim=None, sharey=False, **kwargs):
                      
     """
        plot_type == 0: (default) color-filled contour map overlaid with line contours (every other one)
@@ -169,10 +174,7 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
     suptitle  = kwargs.get("suptitle", None)
     xlabel    = kwargs.get("xlabel", 'x')
     ylabel    = kwargs.get("ylabel", 'y')
-    cbar      = kwargs.get("cbar", False)
     plot_ref  = kwargs.get("plot_ref", False)
-    mask_lt   = kwargs.get("mask_lt", None)
-    mask_gt   = kwargs.get("mask_gt", None)
     fancy_lw  = kwargs.get("fancy_lw", False)
 
     cbar = []
@@ -185,44 +187,54 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
             fig, axes = plt.subplots(1, 1, constrained_layout=True, figsize=(10,10))
             axes = [axes,]
         else:
-            fig, axes = plt.subplots(1, len(fields), constrained_layout=True, figsize=(5*len(fields),5))
+            fig, axes = plt.subplots(1, len(fields), sharey=sharey, constrained_layout=True, figsize=(5*len(fields),5))
     else:
         axes = ax_in
         
-    nplot = -1
-
     for ax, field, title in zip(axes, fields, ptitle):
     
-        nplot += 1
-
-        fld = field['field']
-
+        # disantangle field object
+        
+        fld        = field['field']
+        x          = field['x']
+        y          = field['y']
+        input_cint = field['cint']
+        mask_out   = field['mask_out']
+        mask_in    = field['mask_in']
+        
+        if field['cmap'] != None:
+            color_map = field['cmap']
+            location = 'right'
+        else:
+            color_map = cmap
+            location = 'bottom'
+            
         if debug:
             print(f'PLOT_ROW_CONTOUR:  FLD MAX: {fld.max()} FLD MIN: {fld.min()}' )
-         
+            
+        # contour interval stuff.
+        
         if isinstance(input_cint, list):
-#             cint_levels = np.asarray(cint)
-#             cint        = cint_levels[1] - cint_levels[0]
-
-            amin, amax, cint, cint_levels = nice_clevels(fld.min(), fld.max(), 
-                                                         cint=input_cint[nplot], **kwargs)
+        
+            amin, amax, cint, cint_levels = nice_clevels(fld.min(), fld.max(), cint=input_cint[2], 
+                                                               climits=input_cint[:2], **kwargs)
             cint    = cint_levels[1] - cint_levels[0]
-
+        
         else:
-            amin, amax, input_cint, cint_levels = nice_clevels(fld.min(), fld.max(), cint=cint, **kwargs)
+         
+            amin, amax, cint, cint_levels = nice_clevels(fld.min(), fld.max(), cint=input_cint, **kwargs)
             cint    = cint_levels[1] - cint_levels[0]
             
         # we do the masking AFTER the contour levels so that the cint calcs are cleaner.
             
-        if mask_lt != None:
-            fld = np.ma.masked_less( fld, mask_lt)
+        if mask_out != None:
+        
+            fld = np.ma.masked_outside( fld, mask_out[0], mask_out[1] )
             
-        if mask_gt != None:
-            fld = np.ma.masked_more( fld, mask_gt)
-        
-        x   = field['x']
-        y   = field['y']
-        
+        if mask_in != None:
+            print(mask_in)
+            fld = np.ma.masked_inside( fld, mask_in[0], mask_in[1] )
+                    
         if debug > 10:
             print(f"PLOT_ROW_CONTOUR:  {cint_levels}")
             print(f"PLOT_ROW_CONTOUR: MAX {fld.max()}")
@@ -249,7 +261,7 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
         
             if plot_type == 0:  # (default) color-filled contour map overlaid with line contours (every other one)
    
-                cbar.append( ax.contourf(x, y, fld, levels=cint_levels, cmap=cmap, **kwargs) )
+                cbar.append( ax.contourf(x, y, fld, levels=cint_levels, cmap=color_map, **kwargs) )
            
                 CC = ax.contour(x, y, fld, levels = cint_levels[::2], colors='k', 
                                 linewidths=lwidths, alpha=0.5, **kwargs);
@@ -266,16 +278,24 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
 
             if plot_type == 2:  #simple color_filled plot_contour_row 
         
-                cbar.append( ax.contourf(x, y, fld, levels=color_levels, cmap=cmap, alpha=0.5, **kwargs) )
+                cbar.append( ax.contourf(x, y, fld, levels=color_levels, cmap=color_map, alpha=0.5, **kwargs) )
 
     #             CC = ax.contour(x, y, fld, levels = cint_levels[::2], colors='k', 
     #                             linewidths=lwidths, alpha=1.0, **kwargs);
     #                             
     #             ax.clabel(CC, cint_levels[::2],  inline=1, fmt='%2.2f', fontsize=6) # label every second level
         
+        if field['cmap'] != None:
+            if cbar:
+                cb = plt.colorbar(cbar[-1], ax=ax, shrink=0.8, pad=0.05, location='right')
+                cb.set_label(var.upper())
+
         if ax_in == False:
+        
             ax.set_xlabel(xlabel, fontsize=10)
-            ax.set_ylabel(ylabel, fontsize=10)
+            
+            if sharey == False:
+                ax.set_ylabel(ylabel, fontsize=10)
         
         ax.set_title(f"{title}: {var}  Max: {fld.max():.2g}  Min: {fld.min():.2g} CINT: {cint:.4f}", fontsize=10)
 
@@ -286,13 +306,10 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
 
     # fig.subplots_adjust(right=0.9)
 
-    if cbar:
-        cb = plt.colorbar(cbar[-1], shrink=0.8, pad=0.05)
-        cb.set_label(var.upper())
-
-#   if ax_in.any() == None:
-#       cbar_ax = fig.add_axes([1.,0.175, 0.03, 0.7])
-#       fig.colorbar(CF, cax=cbar_ax)
+    if field['cmap'] == None:
+        if cbar:
+            cb = plt.colorbar(cbar[-1], ax=ax, shrink=0.8, pad=0.05, location='right')
+            cb.set_label(var.upper())
 
     if suptitle != None:
         plt.suptitle(suptitle, fontsize=12)
