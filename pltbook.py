@@ -13,19 +13,23 @@ from metpy.plots import ctables
 import matplotlib.colors as mcolors
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 
+from collections import namedtuple
 
 import warnings
 warnings.filterwarnings("ignore")
 
 hscale = 1.0 
-debug  = 11.
+
+debug  = False
 
 _default_cmap = plt.cm.viridis
 
 _default_lw   = 1.
 
 
-
+plot_struct = namedtuple('plt_struct', ['data', 'x', 'y', 'cint', 'cmap',   \
+                                       'mask_in', 'mask_out', 'limit_fld', \
+                                       'c_focus' ] )
 
 #===============================================================================
 # A function to find maximum value of array in N dimensions.  Returns indices 
@@ -79,25 +83,27 @@ def find_min_index_ND(array_nd, label=None):
 
 def container(*field, **kwargs):
 
+    cint      = kwargs.get("cint", 0.0)
+    cmap      = kwargs.get("cmap", None)
+    c_focus   = kwargs.get("c_focus", None)
+    mask_in   = kwargs.get("mask_in", None)
+    mask_out  = kwargs.get("mask_out", None)
+    limit_fld = kwargs.get("limit_fld", "False")
+
+    data = field[0].copy()
+    
     if len(field) == 1:
-        x1 = np.arange(field[0].shape[1])
-        x  = np.broadcast_to(x1[np.newaxis,:], field[0].shape)
-        y1 = np.arange(field[0].shape[0])
-        y  = np.broadcast_to(y1[:,np.newaxis], field[0].shape)
-
-        return {'field': field[0], 'x': x, 'y': y}
-
-#       return xr.DataArray(field[0], name='field', dims=("ny", "nx"), coords={"X": (["ny", "nx"], x), 
-#                                                                              "Y": (["ny", "nx"], y)} )
+   
+        x1   = np.arange(data.shape[1])
+        x    = np.broadcast_to(x1[np.newaxis,:], data.shape)
+        y1   = np.arange(data.shape[0])
+        y    = np.broadcast_to(y1[:,np.newaxis], data.shape)
 
     elif len(field) == 3:
 
         if debug:  print('X/Y/2D: ',field[0].shape, field[1].shape, field[2].shape)
 
         if field[1].ndim == 1:
-#           if field[1].shape[0] == field[0].shape[0]:
-#           x = np.broadcast_to(field[1][:], field[0].shape)
-#               x = np.hstack([field[1]]*field[0].shape[1]).reshape(field[0].shape)
 
             if field[1].shape[0] == field[0].shape[0]: 
                 x = field[2]
@@ -107,11 +113,10 @@ def container(*field, **kwargs):
             if debug:  print('X: ',x.shape)
 
         else:
+        
             x = field[1]
 
         if field[2].ndim == 1:
-#           y = np.broadcast_to(field[2][np.newaxis, :], field[0].shape)
-#           y = np.hstack([field[2]]*field[0].shape[0]).reshape(field[0].shape)
 
             if field[2].shape[0] == field[0].shape[1]: 
                 y = field[1]
@@ -119,41 +124,29 @@ def container(*field, **kwargs):
                 y = field[2]
 
             if debug:  print('Y: ', y.shape)
+        
         else:
             y = field[2]
 
-        if debug:  print('FLD: ', field[0].max(), field[0].min())
+        if debug:  print('FLD: ', data.max(), data.min())
         if debug:  print('X: ', x.max(), x.min())
         if debug:  print('Y: ', y.max(), y.min())
         
-        cint     = kwargs.get("cint", 0.0)
-        cmap     = kwargs.get("cmap", None)
-        mask_in  = kwargs.get("mask_in", None)
-        mask_out = kwargs.get("mask_out", None)
-        
-        return {'field': field[0], 
-                'x': x, 'y': y, 
-                'cint':cint, 'cmap': cmap,
-                'mask_in':mask_in, 'mask_out':mask_out}
-
     else:
 
         if field[-1].ndim == 2:
 
             print("\n --->Container Error: the number of items is not 1 or 3")
-            print(" --->Container Error: creating fake axis data and returning 2D array\n")
+            print(" --->Container Error: adding **kwargs to container\n")
 
-            x = np.arange(field[-1].shape[1])
-            y = np.arange(field[-1].shape[0])
+            data = None
+            x    = None
+            y    = None
 
-            return {'field': None, 'x': x, 'y': y}
-
-#           return xr.DataArray( field[-1], dims=("ny", "nx"), coords={"X": (["nx"], x), 
-#                                                                      "Y": (["ny"], y)} )
-
-        else:
-            print("\n --->Container Error: data passed is weird!\n")
-
+    return plot_struct(data=data, x=x, y=y, 
+                       cint=cint, cmap=cmap, 
+                       mask_in=mask_in, mask_out=mask_out, 
+                       limit_fld=limit_fld, c_focus=c_focus)
     
 #===============================================================================
 # 2D generic plotting code using container
@@ -195,19 +188,20 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
     
         # disantangle field object
         
-        fld        = field['field']
-        x          = field['x']
-        y          = field['y']
-        input_cint = field['cint']
-        mask_out   = field['mask_out']
-        mask_in    = field['mask_in']
+        fld        = field.data
+        x          = field.x
+        y          = field.y
+        input_cint = field.cint
+        mask_out   = field.mask_out
+        mask_in    = field.mask_in
+        c_focus    = field.c_focus
         
-        if field['cmap'] != None:
-            color_map = field['cmap']
-            location = 'right'
+        if field.cmap != None:
+            color_map = field.cmap
+            location = 'bottom'
         else:
             color_map = cmap
-            location = 'bottom'
+            location = 'right'
             
         if debug:
             print(f'PLOT_ROW_CONTOUR:  FLD MAX: {fld.max()} FLD MIN: {fld.min()}' )
@@ -217,13 +211,18 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
         if isinstance(input_cint, list):
         
             amin, amax, cint, cint_levels = nice_clevels(fld.min(), fld.max(), cint=input_cint[2], 
-                                                               climits=input_cint[:2], **kwargs)
+                                                         climits=input_cint[:2], **kwargs)
             cint    = cint_levels[1] - cint_levels[0]
         
         else:
          
             amin, amax, cint, cint_levels = nice_clevels(fld.min(), fld.max(), cint=input_cint, **kwargs)
             cint    = cint_levels[1] - cint_levels[0]
+            
+        # store off max / mins
+        
+        fmax = fld.max()
+        fmin = fld.min()
             
         # we do the masking AFTER the contour levels so that the cint calcs are cleaner.
             
@@ -232,13 +231,18 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
             fld = np.ma.masked_outside( fld, mask_out[0], mask_out[1] )
             
         if mask_in != None:
-            print(mask_in)
+
             fld = np.ma.masked_inside( fld, mask_in[0], mask_in[1] )
+            
+        if field.limit_fld:
+        
+            fld[fld > amax] = amax
+            fld[fld < amin] = amin
                     
         if debug > 10:
             print(f"PLOT_ROW_CONTOUR:  {cint_levels}")
-            print(f"PLOT_ROW_CONTOUR: MAX {fld.max()}")
-            print(f"PLOT_ROW_CONTOUR: MIN {fld.min()}")
+            print(f"PLOT_ROW_CONTOUR: MAX {fmax}")
+            print(f"PLOT_ROW_CONTOUR: MIN {fmin}")
 
             
         if fancy_lw:
@@ -263,8 +267,11 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
    
                 cbar.append( ax.contourf(x, y, fld, levels=cint_levels, cmap=color_map, **kwargs) )
            
-                CC = ax.contour(x, y, fld, levels = cint_levels[::2], colors='k', 
+                ax.contour(x, y, fld, levels = cint_levels[::2], colors='k', 
                                 linewidths=lwidths, alpha=0.5, **kwargs);
+                                
+                if c_focus != None:
+                    ax.contour(x, y, fld, level=c_focus[0], color=c_focus[1], linewidth=c_focus[2] );
                             
                 #ax.clabel(CC, cint_levels[::2],  inline=1, fmt='%2.2f', fontsize=6) # label every second level
                
@@ -285,9 +292,9 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
     #                             
     #             ax.clabel(CC, cint_levels[::2],  inline=1, fmt='%2.2f', fontsize=6) # label every second level
         
-        if field['cmap'] != None:
+        if field.cmap != None:
             if cbar:
-                cb = plt.colorbar(cbar[-1], ax=ax, shrink=0.8, pad=0.05, location='right')
+                cb = plt.colorbar(cbar[-1], ax=ax, shrink=0.8, pad=0.05, location=location)
                 cb.set_label(var.upper())
 
         if ax_in == False:
@@ -297,7 +304,7 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
             if sharey == False:
                 ax.set_ylabel(ylabel, fontsize=10)
         
-        ax.set_title(f"{title}: {var}  Max: {fld.max():.2g}  Min: {fld.min():.2g} CINT: {cint:.4f}", fontsize=10)
+        ax.set_title(f"{title}: {var}  Max: {fmax:.2g}  Min: {fmin:.2g} CINT: {cint:.2g}", fontsize=10)
 
         if ax_in == False and xlim:
             ax.set_xlim(xlim)
@@ -306,7 +313,7 @@ def plot_contour_row(fields, plot_type=0, ptitle=[], var='', ax_in=False,
 
     # fig.subplots_adjust(right=0.9)
 
-    if field['cmap'] == None:
+    if field.cmap == None:
         if cbar:
             cb = plt.colorbar(cbar[-1], ax=ax, shrink=0.8, pad=0.05, location='right')
             cb.set_label(var.upper())
